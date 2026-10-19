@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Countdown</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #E7ECEF;
+    --surface: #F6F8F9;
+    --ink: #1C2730;
+    --muted: #5B6873;
+    --track: #D2DAE0;
+    --accent: #2E5C88;
+    --accent-ink: #FFFFFF;
+    --done: #3F7D5C;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131A1F;
+      --surface: #1C252C;
+      --ink: #E4EAEE;
+      --muted: #94A2AD;
+      --track: #2B3640;
+      --accent: #86ADD8;
+      --accent-ink: #10171C;
+      --done: #7CC39C;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    padding: 24px 16px;
+  }
+  main {
+    width: 100%;
+    max-width: 380px;
+    background: var(--surface);
+    border-radius: 28px;
+    padding: 28px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* Dial */
+  .dial {
+    position: relative;
+    width: min(260px, 72vw);
+    aspect-ratio: 1;
+    margin: 0 auto;
+  }
+  .dial svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .dial circle { fill: none; stroke-width: 10; }
+  .dial .track { stroke: var(--track); }
+  .dial .bar {
+    stroke: var(--accent);
+    stroke-linecap: round;
+    transition: stroke 300ms ease;
+  }
+  .dial.finished .bar { stroke: var(--done); }
+  .readout {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+  .time {
+    font-size: clamp(3rem, 15vw, 4.25rem);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .status { font-size: 0.95rem; color: var(--muted); min-height: 1.3em; }
+
+  /* Duration picker */
+  .picker { display: flex; flex-direction: column; gap: 12px; }
+  .picker-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.95rem;
+  }
+  .picker-head span { color: var(--muted); }
+  .picker-head output { font-weight: 600; font-variant-numeric: tabular-nums; }
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--accent);
+    height: 28px;
+    margin: 0;
+  }
+  .presets { display: flex; gap: 8px; flex-wrap: wrap; }
+  .presets button {
+    flex: 1;
+    min-width: 52px;
+    padding: 8px 0;
+    border-radius: 999px;
+    border: 1.5px solid var(--track);
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .presets button[aria-pressed="true"] {
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .picker[aria-disabled="true"] { opacity: 0.45; pointer-events: none; }
+
+  /* Controls */
+  .controls { display: flex; gap: 10px; }
+  .controls button {
+    font: inherit;
+    font-weight: 600;
+    font-size: 1.05rem;
+    border-radius: 16px;
+    padding: 15px 0;
+    cursor: pointer;
+    border: none;
+  }
+  #startBtn { flex: 2; background: var(--accent); color: var(--accent-ink); }
+  #resetBtn {
+    flex: 1;
+    background: transparent;
+    color: var(--ink);
+    border: 1.5px solid var(--track);
+  }
+  #resetBtn:disabled { opacity: 0.4; cursor: default; }
+  button:focus-visible, input:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 3px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dial .bar { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="dial" id="dial" role="progressbar" aria-label="Time remaining" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+    <svg viewBox="0 0 120 120" aria-hidden="true">
+      <circle class="track" cx="60" cy="60" r="52"/>
+      <circle class="bar" id="bar" cx="60" cy="60" r="52"/>
+    </svg>
+    <div class="readout">
+      <div class="time" id="time">1:00</div>
+      <div class="status" id="status" aria-live="polite">Ready</div>
+    </div>
+  </div>
+
+  <div class="picker" id="picker">
+    <div class="picker-head">
+      <label for="duration"><span>Duration</span></label>
+      <output id="durationOut" for="duration">1 min</output>
+    </div>
+    <input type="range" id="duration" min="10" max="300" step="5" value="60">
+    <div class="presets" id="presets">
+      <button type="button" data-s="10">10s</button>
+      <button type="button" data-s="30">30s</button>
+      <button type="button" data-s="60">1m</button>
+      <button type="button" data-s="120">2m</button>
+      <button type="button" data-s="300">5m</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button type="button" id="startBtn">Start</button>
+    <button type="button" id="resetBtn" disabled>Reset</button>
+  </div>
+</main>
+
+<script>
+  const R = 52, C = 2 * Math.PI * R;
+  const $ = id => document.getElementById(id);
+  const bar = $('bar'), dial = $('dial'), timeEl = $('time'), statusEl = $('status');
+  const slider = $('duration'), out = $('durationOut'), picker = $('picker');
+  const startBtn = $('startBtn'), resetBtn = $('resetBtn');
+  const presetBtns = [...document.querySelectorAll('#presets button')];
+
+  bar.style.strokeDasharray = C;
+
+  let total = 60000;        // selected duration (ms)
+  let remaining = total;    // ms left
+  let endAt = 0;            // performance.now() target while running
+  let state = 'idle';       // idle | running | paused | done
+  let raf = 0, doneTimer = 0, audioCtx = null;
+
+  const fmt = ms => {
+    const s = Math.ceil(ms / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  };
+  const label = s => s < 60 ? `${s} sec`
+    : s % 60 === 0 ? `${s / 60} min` : `${Math.floor(s / 60)} min ${s % 60} sec`;
+
+  function draw() {
+    const frac = Math.max(0, remaining / total);
+    bar.style.strokeDashoffset = C * (1 - frac);
+    timeEl.textContent = fmt(remaining);
+    dial.setAttribute('aria-valuenow', Math.round(frac * 100));
+  }
+
+  function setDuration(s) {
+    total = remaining = s * 1000;
+    slider.value = s;
+    out.textContent = label(s);
+    presetBtns.forEach(b => b.setAttribute('aria-pressed', +b.dataset.s === s));
+    draw();
+  }
+
+  function tick() {
+    remaining = Math.max(0, endAt - performance.now());
+    draw();
+    if (state === 'running') raf = requestAnimationFrame(tick);
+  }
+
+  function start() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (state === 'done') remaining = total;
+    state = 'running';
+    endAt = performance.now() + remaining;
+    clearTimeout(doneTimer);
+    doneTimer = setTimeout(finish, remaining); // fires even if tab is in background
+    raf = requestAnimationFrame(tick);
+    dial.classList.remove('finished');
+    statusEl.textContent = 'Counting down';
+    startBtn.textContent = 'Pause';
+    resetBtn.disabled = false;
+    picker.setAttribute('aria-disabled', 'true');
+    slider.disabled = true;
+  }
+
+  function pause() {
+    remaining = Math.max(0, endAt - performance.now());
+    state = 'paused';
+    cancelAnimationFrame(raf);
+    clearTimeout(doneTimer);
+    draw();
+    statusEl.textContent = 'Paused';
+    startBtn.textContent = 'Resume';
+  }
+
+  function finish() {
+    state = 'done';
+    cancelAnimationFrame(raf);
+    remaining = 0;
+    draw();
+    dial.classList.add('finished');
+    statusEl.textContent = 'Time’s up';
+    startBtn.textContent = 'Start again';
+    picker.removeAttribute('aria-disabled');
+    slider.disabled = false;
+    chime();
+  }
+
+  function reset() {
+    state = 'idle';
+    cancelAnimationFrame(raf);
+    clearTimeout(doneTimer);
+    remaining = total;
+    draw();
+    dial.classList.remove('finished');
+    statusEl.textContent = 'Ready';
+    startBtn.textContent = 'Start';
+    resetBtn.disabled = true;
+    picker.removeAttribute('aria-disabled');
+    slider.disabled = false;
+  }
+
+  // Soft two-note chime: sine tones with a gentle attack and long decay
+  function chime() {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    const master = audioCtx.createGain();
+    master.gain.value = 0.18;
+    master.connect(audioCtx.destination);
+    [[659.25, 0], [987.77, 0.18]].forEach(([freq, delay]) => {
+      const t = now + delay;
+      [1, 2].forEach((mult, i) => {           // fundamental + quiet overtone
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq * mult;
+        const peak = i === 0 ? 1 : 0.15;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(peak, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+        osc.connect(g).connect(master);
+        osc.start(t);
+        osc.stop(t + 1.7);
+      });
+    });
+  }
+
+  slider.addEventListener('input', () => setDuration(+slider.value));
+  presetBtns.forEach(b => b.addEventListener('click', () => {
+    setDuration(+b.dataset.s);
+    if (state === 'done') reset();
+  }));
+  slider.addEventListener('change', () => { if (state === 'done') reset(); });
+  startBtn.addEventListener('click', () => state === 'running' ? pause() : start());
+  resetBtn.addEventListener('click', reset);
+
+  setDuration(60);
+</script>
+</body>
+</html>

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Price total</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --desk: #E3E8ED;
+    --tape: #FFFFFF;
+    --ink: #1F2A36;
+    --muted: #6B7785;
+    --line: #D3DAE1;
+    --accent: #B8322A;
+    --focus: #2F6FB3;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --desk: #161B21;
+      --tape: #222A33;
+      --ink: #E7ECF1;
+      --muted: #8E9AA7;
+      --line: #36404B;
+      --accent: #F06E63;
+      --focus: #7AB0EA;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--desk);
+    color: var(--ink);
+    font: 16px/1.5 "IBM Plex Sans", system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 32px 20px 120px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+  h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 4px; }
+  .hint { color: var(--muted); margin: 0 0 16px; font-size: .95rem; }
+  textarea {
+    width: 100%;
+    min-height: 420px;
+    resize: vertical;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--tape);
+    color: var(--ink);
+    font: 1rem/1.7 "IBM Plex Mono", ui-monospace, monospace;
+  }
+  textarea:focus-visible, button:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .actions { display: flex; gap: 10px; margin-top: 12px; }
+  button {
+    font: inherit;
+    font-size: .95rem;
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--tape);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--muted); }
+
+  /* The adding-machine tape */
+  .tape {
+    background: var(--tape);
+    padding: 24px 22px 28px;
+    position: sticky;
+    top: 20px;
+    /* torn zig-zag bottom edge */
+    -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 14px 100%;
+            mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 14px 100%;
+    padding-bottom: 36px;
+  }
+  .total-label { color: var(--muted); font-size: .95rem; }
+  .total {
+    font: 500 2.6rem/1.1 "IBM Plex Mono", ui-monospace, monospace;
+    letter-spacing: -.02em;
+    margin: 2px 0 4px;
+    word-break: break-all;
+  }
+  .count { color: var(--muted); font-size: .9rem; margin-bottom: 18px; }
+  ol {
+    list-style: none;
+    margin: 0;
+    padding: 14px 0 0;
+    border-top: 1px dashed var(--line);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .95rem;
+    max-height: 340px;
+    overflow-y: auto;
+  }
+  li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 3px 0;
+  }
+  li .n { color: var(--muted); }
+  li.neg .v { color: var(--accent); }
+  li.skip { color: var(--muted); font-style: italic; }
+  .empty { color: var(--muted); font-family: "IBM Plex Sans", system-ui, sans-serif; }
+  .toast { color: var(--muted); font-size: .9rem; align-self: center; }
+
+  /* Mobile: stack, and pin the total to the bottom of the screen */
+  @media (max-width: 700px) {
+    main { grid-template-columns: 1fr; padding-top: 24px; }
+    textarea { min-height: 260px; }
+    .tape { position: static; }
+    .bar {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      background: var(--tape);
+      border-top: 1px solid var(--line);
+      padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+      display: flex; justify-content: space-between; align-items: baseline;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+    }
+    .bar strong { font-size: 1.5rem; font-weight: 500; }
+  }
+  @media (min-width: 701px) { .bar { display: none; } }
+</style>
+</head>
+<body>
+<main>
+  <section>
+    <h1>Add up prices</h1>
+    <p class="hint">Paste or type one price per line. Currency symbols and text are ignored.</p>
+    <textarea id="input" spellcheck="false" placeholder="12.99&#10;$4.50&#10;€ 1,250.00&#10;Coffee 3,20" aria-label="Prices"></textarea>
+    <div class="actions">
+      <button id="copy">Copy total</button>
+      <button id="clear">Clear</button>
+      <span class="toast" id="toast" role="status"></span>
+    </div>
+  </section>
+
+  <section class="tape" aria-live="polite">
+    <div class="total-label">Total</div>
+    <div class="total" id="total">0.00</div>
+    <div class="count" id="count">No prices yet</div>
+    <ol id="list"><li class="empty">Your prices will appear here as you paste them.</li></ol>
+  </section>
+</main>
+
+<div class="bar"><span>Total</span><strong id="barTotal">0.00</strong></div>
+
+<script>
+  const input = document.getElementById('input');
+  const totalEl = document.getElementById('total');
+  const barTotal = document.getElementById('barTotal');
+  const countEl = document.getElementById('count');
+  const list = document.getElementById('list');
+  const toast = document.getElementById('toast');
+
+  // Turn a number string like "1,234.56", "1.234,56", "12,50" or "1250" into a number.
+  function toNumber(raw) {
+    let s = raw.replace(/\s/g, '');
+    const lastComma = s.lastIndexOf(',');
+    const lastDot = s.lastIndexOf('.');
+    if (lastComma > -1 && lastDot > -1) {
+      // Whichever comes last is the decimal separator
+      if (lastComma > lastDot) s = s.replace(/\./g, '').replace(',', '.');
+      else s = s.replace(/,/g, '');
+    } else if (lastComma > -1) {
+      // "1,250" = thousands; "12,50" = decimal
+      const after = s.length - lastComma - 1;
+      const commas = (s.match(/,/g) || []).length;
+      s = (after === 3 && commas >= 1 && !/^-?0,/.test(s)) ? s.replace(/,/g, '') : s.replace(',', '.');
+    } else if (lastDot > -1) {
+      const dots = (s.match(/\./g) || []).length;
+      if (dots > 1) s = s.replace(/\./g, ''); // "1.250.000"
+    }
+    return parseFloat(s);
+  }
+
+  const numberPattern = /-?\d{1,3}(?:[.,]\d{3})+(?:[.,]\d+)?|-?\d+(?:[.,]\d+)?/g;
+
+  function fmt(n) {
+    return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function update() {
+    const lines = input.value.split(/[\n;\t]+/).map(l => l.trim()).filter(Boolean);
+    const items = [];
+    lines.forEach(line => {
+      const matches = line.match(numberPattern);
+      if (!matches) { items.push({ skip: line }); return; }
+      matches.forEach(m => {
+        const n = toNumber(m);
+        if (!isNaN(n)) items.push({ value: n });
+      });
+    });
+
+    const prices = items.filter(i => 'value' in i);
+    // Sum in cents to avoid floating point drift
+    const total = prices.reduce((sum, i) => sum + Math.round(i.value * 100), 0) / 100;
+
+    totalEl.textContent = fmt(total);
+    barTotal.textContent = fmt(total);
+    countEl.textContent = prices.length === 0 ? 'No prices yet'
+      : prices.length === 1 ? '1 price' : `${prices.length} prices`;
+
+    list.innerHTML = '';
+    if (items.length === 0) {
+      list.innerHTML = '<li class="empty">Your prices will appear here as you paste them.</li>';
+      return;
+    }
+    let i = 0;
+    items.forEach(item => {
+      const li = document.createElement('li');
+      if ('skip' in item) {
+        li.className = 'skip';
+        li.textContent = `skipped: ${item.skip}`;
+      } else {
+        i++;
+        if (item.value < 0) li.className = 'neg';
+        li.innerHTML = `<span class="n">${i}</span><span class="v">${fmt(item.value)}</span>`;
+      }
+      list.appendChild(li);
+    });
+  }
+
+  input.addEventListener('input', update);
+
+  document.getElementById('clear').addEventListener('click', () => {
+    input.value = '';
+    update();
+    input.focus();
+  });
+
+  document.getElementById('copy').addEventListener('click', async () => {
+    const text = totalEl.textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.textContent = 'Copied';
+    } catch {
+      toast.textContent = 'Copy failed. Select the total manually.';
+    }
+    setTimeout(() => toast.textContent = '', 1800);
+  });
+
+  update();
+</script>
+</body>
+</html>
