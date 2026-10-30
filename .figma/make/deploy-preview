@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+build_dir="$(mktemp -d)"
+trap 'rm -rf "$build_dir"' EXIT
+
+cp -R countdown-timer price-total pwd "$build_dir/"
+cat > "$build_dir/index.html" <<'EOF'
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Index</title></head>
+<body>
+<h1>Index</h1>
+<ul>
+  <li><a href="./countdown-timer/countdown-timer.html">Countdown timer</a></li>
+  <li><a href="./price-total/price-total.html">Price total</a></li>
+  <li><a href="./pwd/passwd.sha1.1a.html">Password generator</a></li>
+</ul>
+</body>
+</html>
+EOF
+
+[[ -d "$build_dir" ]] || {
+  echo "Expected static build output at $build_dir" >&2
+  exit 1
+}
+
+figma make deploy-preview --build-dir "$build_dir"
